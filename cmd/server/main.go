@@ -20,6 +20,12 @@ func main() {
 	defer conn.Close()
 	fmt.Println("Connection Sucessful")
 
+	// create new channel on the connection
+	// connCh, err := conn.Channel()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
 	<-sigChan
