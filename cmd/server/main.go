@@ -3,9 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
 
+	"github.com/OminousOmelet/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/OminousOmelet/learn-pub-sub-starter/internal/pubsub"
 	"github.com/OminousOmelet/learn-pub-sub-starter/internal/routing"
 	"github.com/rabbitmq/amqp091-go"
@@ -21,22 +20,53 @@ func main() {
 
 	defer conn.Close()
 	fmt.Println("Connection Sucessful")
+	gamelogic.PrintServerHelp()
 
 	// create new channel on the connection
-	connCh, err := conn.Channel()
+	// connCh, err := conn.Channel()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	connCh, queue, err := pubsub.DeclareAndBind(conn,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		routing.GameLogSlug+".*",
+		pubsub.Durable)
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Printf("Queue '%s' declared and bound\n", queue.Name)
 
-	err = pubsub.PublishJSON(connCh, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: true})
-	if err != nil {
-		log.Fatal(err)
+	for {
+		userInput := gamelogic.GetInput()
+		if len(userInput) == 0 {
+			continue
+		}
+		switch userInput[0] {
+		case "pause":
+			fmt.Println("Sending 'pause' message...")
+			err = pubsub.PublishJSON(connCh,
+				routing.ExchangePerilDirect,
+				routing.PauseKey,
+				routing.PlayingState{IsPaused: true})
+			if err != nil {
+				fmt.Println(err)
+			}
+		case "resume":
+			fmt.Println("Sending 'resume' message...")
+			err = pubsub.PublishJSON(connCh,
+				routing.ExchangePerilDirect,
+				routing.PauseKey,
+				routing.PlayingState{IsPaused: false})
+			if err != nil {
+				fmt.Println(err)
+			}
+		case "quit":
+			fmt.Println("exiting...")
+			return
+		default:
+			fmt.Println("unrecognized command")
+		}
 	}
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt)
-	<-sigChan
-
-	fmt.Println("\nshutting down")
-	os.Exit(0)
 }
