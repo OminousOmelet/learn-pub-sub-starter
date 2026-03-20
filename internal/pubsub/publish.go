@@ -29,7 +29,11 @@ func PublishJSON[T any](ch *amqp091.Channel, exchange, key string, val T) error 
 }
 
 func DeclareAndBind(
-	conn *amqp091.Connection, exchange, queueName, key string, queueType SimpleQueueType, // SimpleQueueType is an "enum" type I made to represent "durable" or "transient"
+	conn *amqp091.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType, // SimpleQueueType is an "enum" to represent "durable" or "transient"
 ) (*amqp091.Channel, amqp091.Queue, error) {
 	connCh, err := conn.Channel()
 	if err != nil {
@@ -54,4 +58,42 @@ func DeclareAndBind(
 	}
 
 	return connCh, queue, nil
+}
+
+func SubscribeJSON[T any](
+	conn *amqp091.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
+	handler func(T),
+) error {
+	connCh, _, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
+	if err != nil {
+		return fmt.Errorf("QUEUE DECLARE/BIND ERROR: %s", err)
+	}
+
+	deliveries, err := connCh.Consume(queueName, "", false, false, false, false, nil)
+	if err != nil {
+		return err
+	}
+
+	// unsure if errs go anywhere, using handling method I looked up just blocks
+	go func() error {
+		for d := range deliveries {
+			var data T
+			err = json.Unmarshal(d.Body, &data)
+			if err != nil {
+				return fmt.Errorf("JSON ERROR: %s", err)
+			}
+			handler(data)
+			d.Ack(false)
+			if err != nil {
+				return fmt.Errorf("ACKNOWLEDGE ERROR: %s", err)
+			}
+		}
+		return nil
+	}()
+
+	return nil
 }

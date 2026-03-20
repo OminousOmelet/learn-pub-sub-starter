@@ -65,6 +65,8 @@ func main() {
 		case "quit":
 			fmt.Println("exiting...")
 			return
+		case "help":
+			gamelogic.PrintServerHelp()
 		default:
 			fmt.Println("unrecognized command")
 		}

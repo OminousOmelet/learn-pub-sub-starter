@@ -26,17 +26,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	_, queue, err := pubsub.DeclareAndBind(conn,
+	gamestate := gamelogic.NewGameState(userName)
+
+	err = pubsub.SubscribeJSON(conn,
 		routing.ExchangePerilDirect,
 		routing.PauseKey+"."+userName,
 		routing.PauseKey,
-		pubsub.Transient)
+		pubsub.Transient,
+		handlerPause(gamestate))
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Queue '%s' declared and bound\n", queue.Name)
-
-	gamestate := gamelogic.NewGameState(userName)
+	fmt.Println("\nGame state successfully prepared!")
 
 	for {
 		userInput := gamelogic.GetInput()
