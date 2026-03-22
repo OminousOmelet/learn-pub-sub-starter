@@ -5,20 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/OminousOmelet/learn-pub-sub-starter/internal/routing"
 	"github.com/rabbitmq/amqp091-go"
 )
 
 type SimpleQueueType int
-
-const (
-	Durable = iota
-	Transient
-)
-
 type AckType int
 
 const (
-	Ack = iota
+	Durable SimpleQueueType = iota
+	Transient
+)
+
+const (
+	Ack AckType = iota
 	NackRequeue
 	NackDiscard
 )
@@ -54,7 +54,9 @@ func DeclareAndBind(
 	} else {
 		autoDelete, exclusive = true, true
 	}
-	queue, err := connCh.QueueDeclare(queueName, durable, autoDelete, exclusive, false, nil)
+
+	table := amqp091.Table{"x-dead-letter-exchange": routing.ExchangePerilDeadLetter}
+	queue, err := connCh.QueueDeclare(queueName, durable, autoDelete, exclusive, false, table)
 	if err != nil {
 		return nil, amqp091.Queue{}, fmt.Errorf("pubsub error: failed to declare queue: %s", err)
 	}
@@ -98,25 +100,13 @@ func SubscribeJSON[T any](
 			switch ack {
 			case Ack:
 				ackStr = "Ack"
-				err = d.Ack(false)
-				if err != nil {
-					fmt.Printf("TYPE 'Ack' ERROR: %s", err)
-					continue
-				}
+				d.Ack(false)
 			case NackRequeue:
 				ackStr = "NackRequeue"
-				err = d.Nack(false, true)
-				if err != nil {
-					fmt.Printf("TYPE 'Nackreque' ERROR: %s", err)
-					continue
-				}
+				d.Nack(false, true)
 			case NackDiscard:
 				ackStr = "NackDiscard"
-				err = d.Nack(false, false)
-				if err != nil {
-					fmt.Printf("TYPE 'NackDiscard' ERROR: %s", err)
-					continue
-				}
+				d.Nack(false, false)
 			}
 			fmt.Printf("acktype '%s' succesfully processed.\n> ", ackStr)
 		}
