@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/OminousOmelet/learn-pub-sub-starter/internal/routing"
 	"github.com/rabbitmq/amqp091-go"
 )
 
@@ -16,16 +15,24 @@ const (
 	Transient
 )
 
+type AckType int
+
+const (
+	Ack = iota
+	NackRequeue
+	NackDiscard
+)
+
 func PublishJSON[T any](ch *amqp091.Channel, exchange, key string, val T) error {
 	valData, err := json.Marshal(val)
-	ch.PublishWithContext(context.Background(), exchange, key, false, false, amqp091.Publishing{
-		ContentType: "application/json", Body: valData,
-	})
 	if err != nil {
 		return fmt.Errorf("error calling Publish method on channel: %s", err)
 	}
 
-	return nil
+	// .....what??
+	return ch.PublishWithContext(context.Background(), exchange, key, false, false, amqp091.Publishing{
+		ContentType: "application/json", Body: valData,
+	})
 }
 
 func DeclareAndBind(
@@ -33,7 +40,7 @@ func DeclareAndBind(
 	exchange,
 	queueName,
 	key string,
-	queueType SimpleQueueType, // SimpleQueueType is an "enum" to represent "durable" or "transient"
+	queueType SimpleQueueType, // an "enum" to represent "durable" or "transient"
 ) (*amqp091.Channel, amqp091.Queue, error) {
 	connCh, err := conn.Channel()
 	if err != nil {
@@ -52,7 +59,7 @@ func DeclareAndBind(
 		return nil, amqp091.Queue{}, fmt.Errorf("pubsub error: failed to declare queue: %s", err)
 	}
 
-	err = connCh.QueueBind(queueName, routing.PauseKey, exchange, false, nil)
+	err = connCh.QueueBind(queueName, key, exchange, false, nil)
 	if err != nil {
 		return nil, amqp091.Queue{}, fmt.Errorf("pubsub error: failed to bind queue to exchange: %s", err)
 	}
@@ -66,7 +73,7 @@ func SubscribeJSON[T any](
 	queueName,
 	key string,
 	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
-	handler func(T),
+	handler func(T) AckType,
 ) error {
 	connCh, _, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
 	if err != nil {
@@ -78,21 +85,41 @@ func SubscribeJSON[T any](
 		return err
 	}
 
-	// unsure if errs go anywhere, using handling method I looked up just blocks
-	go func() error {
+	go func() {
 		for d := range deliveries {
 			var data T
 			err = json.Unmarshal(d.Body, &data)
 			if err != nil {
-				return fmt.Errorf("JSON ERROR: %s", err)
+				fmt.Printf("JSON ERROR: %s", err)
+				continue
 			}
-			handler(data)
-			d.Ack(false)
-			if err != nil {
-				return fmt.Errorf("ACKNOWLEDGE ERROR: %s", err)
+			ack := handler(data)
+			ackStr := ""
+			switch ack {
+			case Ack:
+				ackStr = "Ack"
+				err = d.Ack(false)
+				if err != nil {
+					fmt.Printf("TYPE 'Ack' ERROR: %s", err)
+					continue
+				}
+			case NackRequeue:
+				ackStr = "NackRequeue"
+				err = d.Nack(false, true)
+				if err != nil {
+					fmt.Printf("TYPE 'Nackreque' ERROR: %s", err)
+					continue
+				}
+			case NackDiscard:
+				ackStr = "NackDiscard"
+				err = d.Nack(false, false)
+				if err != nil {
+					fmt.Printf("TYPE 'NackDiscard' ERROR: %s", err)
+					continue
+				}
 			}
+			fmt.Printf("acktype '%s' succesfully processed.\n> ", ackStr)
 		}
-		return nil
 	}()
 
 	return nil

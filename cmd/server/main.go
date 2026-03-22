@@ -29,7 +29,7 @@ func main() {
 	// }
 
 	connCh, queue, err := pubsub.DeclareAndBind(conn,
-		routing.ExchangePerilTopic,
+		routing.ExchangePerilDirect,
 		routing.GameLogSlug,
 		routing.GameLogSlug+".*",
 		pubsub.Durable)

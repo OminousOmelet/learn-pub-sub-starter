@@ -33,29 +33,53 @@ func main() {
 		routing.PauseKey+"."+userName,
 		routing.PauseKey,
 		pubsub.Transient,
-		handlerPause(gamestate))
+		handlerPause(gamestate),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("\nGame state successfully prepared!")
+	fmt.Println("Sub to pause queue successful.")
 
+	err = pubsub.SubscribeJSON(conn,
+		routing.ExchangePerilTopic,
+		routing.ArmyMovesPrefix+"."+userName,
+		routing.ArmyMovesPrefix+".*",
+		pubsub.Transient,
+		handlerMove(gamestate),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Sub to move queue successful.")
+
+	fmt.Println("Launching game loop...")
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("Error starting publishing channel: %s", err)
+	}
 	for {
-		userInput := gamelogic.GetInput()
-		if len(userInput) == 0 {
+		input := gamelogic.GetInput()
+		if len(input) == 0 {
 			continue
 		}
-		switch userInput[0] {
+		switch input[0] {
 		case "spawn":
-			err = gamestate.CommandSpawn(userInput)
+			err = gamestate.CommandSpawn(input)
 			if err != nil {
 				fmt.Println(err)
 			}
 		case "move":
-			_, err := gamestate.CommandMove(userInput)
+			mv, err := gamestate.CommandMove(input)
 			if err != nil {
 				fmt.Println(err)
+				continue
 			}
-			fmt.Println("Unit successfully moved")
+			err = pubsub.PublishJSON(ch, routing.ExchangePerilTopic, routing.ArmyMovesPrefix+"."+userName, mv)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			fmt.Println("Move message successfully published.")
 		case "status":
 			gamestate.CommandStatus()
 		case "spam":
