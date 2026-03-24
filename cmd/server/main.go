@@ -22,12 +22,6 @@ func main() {
 	fmt.Println("Connection Sucessful")
 	gamelogic.PrintServerHelp()
 
-	// create new channel on the connection
-	// connCh, err := conn.Channel()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
 	connCh, queue, err := pubsub.DeclareAndBind(conn,
 		routing.ExchangePerilTopic,
 		routing.GameLogSlug,

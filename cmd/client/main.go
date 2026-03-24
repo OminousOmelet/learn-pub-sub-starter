@@ -20,6 +20,10 @@ func main() {
 
 	defer conn.Close()
 	fmt.Println("\nConnection Sucessful")
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("Error starting publishing channel: %s", err)
+	}
 
 	userName, err := gamelogic.ClientWelcome()
 	if err != nil {
@@ -45,18 +49,27 @@ func main() {
 		routing.ArmyMovesPrefix+"."+userName,
 		routing.ArmyMovesPrefix+".*",
 		pubsub.Transient,
-		handlerMove(gamestate),
+		handlerMove(ch, gamestate),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println("Sub to move queue successful.")
 
-	fmt.Println("Launching game loop...")
-	ch, err := conn.Channel()
+	err = pubsub.SubscribeJSON(conn,
+		routing.ExchangePerilTopic,
+		routing.WarRecognitionsPrefix,
+		routing.WarRecognitionsPrefix+".*",
+		pubsub.Durable,
+		handlerWar(gamestate),
+	)
 	if err != nil {
-		log.Fatalf("Error starting publishing channel: %s", err)
+		log.Fatal(err)
 	}
+	fmt.Println("Sub to war queue successful.")
+
+	fmt.Println("Launching game loop...")
+
 	for {
 		input := gamelogic.GetInput()
 		if len(input) == 0 {
