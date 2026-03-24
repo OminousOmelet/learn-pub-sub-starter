@@ -61,7 +61,7 @@ func main() {
 		routing.WarRecognitionsPrefix,
 		routing.WarRecognitionsPrefix+".*",
 		pubsub.Durable,
-		handlerWar(gamestate),
+		handlerWar(ch, gamestate),
 	)
 	if err != nil {
 		log.Fatal(err)
