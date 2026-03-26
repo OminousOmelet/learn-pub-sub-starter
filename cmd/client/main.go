@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"strconv"
+	"time"
 
 	"github.com/OminousOmelet/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/OminousOmelet/learn-pub-sub-starter/internal/pubsub"
@@ -15,14 +17,14 @@ func main() {
 	const connStr string = "amqp://guest:guest@localhost:5672/"
 	conn, err := amqp091.Dial(connStr)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("error creating client connection %s", err)
 	}
 
 	defer conn.Close()
 	fmt.Println("\nConnection Sucessful")
 	ch, err := conn.Channel()
 	if err != nil {
-		log.Fatalf("Error starting publishing channel: %s", err)
+		log.Fatalf("error creating client channel: %s", err)
 	}
 
 	userName, err := gamelogic.ClientWelcome()
@@ -87,7 +89,11 @@ func main() {
 				fmt.Println(err)
 				continue
 			}
-			err = pubsub.PublishJSON(ch, routing.ExchangePerilTopic, routing.ArmyMovesPrefix+"."+userName, mv)
+			err = pubsub.PublishJSON(ch,
+				routing.ExchangePerilTopic,
+				routing.ArmyMovesPrefix+"."+userName,
+				mv,
+			)
 			if err != nil {
 				fmt.Println(err)
 				continue
@@ -96,7 +102,32 @@ func main() {
 		case "status":
 			gamestate.CommandStatus()
 		case "spam":
-			fmt.Println("Spamming not allowed yet!")
+			if len(input) < 2 {
+				fmt.Println("Usage: [spam] <number of times>")
+				continue
+			}
+			amount, err := strconv.Atoi(input[1])
+			if err != nil {
+				fmt.Println("amount must a be a whole number")
+				continue
+			}
+			for range amount {
+				msg := gamelogic.GetMaliciousLog()
+				err = pubsub.PublishGOB(
+					ch,
+					routing.ExchangePerilTopic,
+					routing.GameLogSlug+"."+userName,
+					routing.GameLog{
+						CurrentTime: time.Now(),
+						Message:     msg,
+						Username:    userName,
+					},
+				)
+				if err != nil {
+					fmt.Printf("error pusblshing spam to logs: %s", err)
+					break
+				}
+			}
 		case "help":
 			gamelogic.PrintClientHelp()
 		case "quit":

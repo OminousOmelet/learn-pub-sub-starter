@@ -15,14 +15,19 @@ func main() {
 	const connStr string = "amqp://guest:guest@localhost:5672/"
 	conn, err := amqp091.Dial(connStr)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("error creating server connection: %s", err)
 	}
 
 	defer conn.Close()
 	fmt.Println("Connection Sucessful")
+	connCh, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("error creating server channel: %s", err)
+	}
+
 	gamelogic.PrintServerHelp()
 
-	connCh, err := pubsub.SubscribeGOB(conn,
+	err = pubsub.SubscribeGOB(conn,
 		routing.ExchangePerilTopic,
 		routing.GameLogSlug,
 		routing.GameLogSlug+".*",
