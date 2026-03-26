@@ -22,15 +22,17 @@ func main() {
 	fmt.Println("Connection Sucessful")
 	gamelogic.PrintServerHelp()
 
-	connCh, queue, err := pubsub.DeclareAndBind(conn,
+	connCh, err := pubsub.SubscribeGOB(conn,
 		routing.ExchangePerilTopic,
 		routing.GameLogSlug,
 		routing.GameLogSlug+".*",
-		pubsub.Durable)
+		pubsub.Durable,
+		handlerLogs(),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Queue '%s' declared and bound\n", queue.Name)
+	fmt.Println("Server successfully subbed to logs.")
 
 	for {
 		userInput := gamelogic.GetInput()

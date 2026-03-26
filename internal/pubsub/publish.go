@@ -32,6 +32,6 @@ func PublishGOB[T any](ch *amqp091.Channel, exchange, key string, val T) error {
 
 	// .....the fuck??
 	return ch.PublishWithContext(context.Background(), exchange, key, false, false, amqp091.Publishing{
-		ContentType: "application/json", Body: buff.Bytes(),
+		ContentType: "application/gob", Body: buff.Bytes(),
 	})
 }
